@@ -1,7 +1,8 @@
 var Promise = require('bluebird'),
     chalk = require('chalk'),
     loadConfigurationFile = require('./loadConfigurationFile').default,
-    notifyIPCWatchCompileDone = require('./watchModeIPC').notifyIPCWatchCompileDone,
+    notifyIPCWatchCompileDone = require('./watchModeIPC')
+        .notifyIPCWatchCompileDone,
     notifyIPCWatchCallback = require('./watchModeIPC').notifyIPCWatchCallback,
     presetToOptions = require('webpack/lib/Stats').presetToOptions;
 /**
@@ -12,16 +13,16 @@ var Promise = require('bluebird'),
 function getWebpack() {
     try {
         return require(process.cwd() + '/node_modules/webpack');
-    } catch(e) {
+    } catch (e) {
         return require('webpack');
     }
 }
 
 function getAppName(webpackConfig) {
     var appName = webpackConfig.name || webpackConfig.output.filename;
-    if(~appName.indexOf('[name]') && typeof webpackConfig.entry === 'object') {
+    if (~appName.indexOf('[name]') && typeof webpackConfig.entry === 'object') {
         var entryNames = Object.keys(webpackConfig.entry);
-        if(entryNames.length === 1) {
+        if (entryNames.length === 1) {
             // we can only replace [name] with the entry point if there is only one entry point
             appName = appName.replace(/\[name]/g, entryNames[0]);
         }
@@ -36,19 +37,19 @@ function getOutputOptions(webpackConfig, options) {
         stats = presetToOptions(stats);
     }
     var outputOptions = Object.create(stats || {});
-    if(typeof options.modulesSort !== 'undefined') {
+    if (typeof options.modulesSort !== 'undefined') {
         outputOptions.modulesSort = options.modulesSort;
     }
-    if(typeof options.chunksSort !== 'undefined') {
+    if (typeof options.chunksSort !== 'undefined') {
         outputOptions.chunksSort = options.chunksSort;
     }
-    if(typeof options.assetsSort !== 'undefined') {
+    if (typeof options.assetsSort !== 'undefined') {
         outputOptions.assetsSort = options.assetsSort;
     }
-    if(typeof options.exclude !== 'undefined') {
+    if (typeof options.exclude !== 'undefined') {
         outputOptions.exclude = options.exclude;
     }
-    if(typeof options.colors !== 'undefined') {
+    if (typeof options.colors !== 'undefined') {
         outputOptions.colors = options.colors;
     }
     return outputOptions;
@@ -66,26 +67,35 @@ function getOutputOptions(webpackConfig, options) {
  * @param {number} expectedConfigLength
  * @param {Function} done The callback that should be invoked once this worker has finished the build.
  */
-module.exports = function(configuratorFileName, options, index, expectedConfigLength, done) {
-    if(options.argv) {
+module.exports = function(
+    configuratorFileName,
+    options,
+    index,
+    expectedConfigLength,
+    done
+) {
+    if (options && options.argv) {
         process.argv = options.argv;
     }
     chalk.enabled = options.colors;
     var config = loadConfigurationFile(configuratorFileName),
         watch = !!options.watch,
         silent = !!options.json;
-    if(expectedConfigLength !== 1 && !Array.isArray(config)
-            || Array.isArray(config) && config.length !== expectedConfigLength) {
-        if(config.length !== expectedConfigLength) {
-            var errorMessage = '[WEBPACK] There is a difference between the amount of the'
-                + ' provided configs. Maybe you where expecting command line'
-                + ' arguments to be passed to your webpack.config.js. If so,'
-                + " you'll need to separate them with a -- from the parallel-webpack options.";
+    if (
+        (expectedConfigLength !== 1 && !Array.isArray(config)) ||
+        (Array.isArray(config) && config.length !== expectedConfigLength)
+    ) {
+        if (config.length !== expectedConfigLength) {
+            var errorMessage =
+                '[WEBPACK] There is a difference between the amount of the' +
+                ' provided configs. Maybe you where expecting command line' +
+                ' arguments to be passed to your webpack.config.js. If so,' +
+                " you'll need to separate them with a -- from the parallel-webpack options.";
             console.error(errorMessage);
             return Promise.reject(errorMessage);
         }
     }
-    if(Array.isArray(config)) {
+    if (Array.isArray(config)) {
         config = config[index];
     }
     Promise.resolve(config).then(function(webpackConfig) {
@@ -94,48 +104,82 @@ module.exports = function(configuratorFileName, options, index, expectedConfigLe
             hasCompletedOneCompile = false,
             outputOptions = getOutputOptions(webpackConfig, options),
             shutdownCallback = function() {
-                if(watcher) {
+                if (watcher) {
                     watcher.close(done);
                 }
                 done({
-                    message: chalk.red('[WEBPACK]') + ' Forcefully shut down ' + chalk.yellow(getAppName(webpackConfig))
+                    message:
+                        chalk.red('[WEBPACK]') +
+                        ' Forcefully shut down ' +
+                        chalk.yellow(getAppName(webpackConfig)),
                 });
                 process.exit(0);
             },
             finishedCallback = function(err, stats) {
-                if(err) {
-                    console.error('%s fatal error occured', chalk.red('[WEBPACK]'));
+                if (err) {
+                    console.error(
+                        '%s fatal error occured',
+                        chalk.red('[WEBPACK]')
+                    );
                     console.error(err);
                     process.removeListener('SIGINT', shutdownCallback);
                     return done(err);
                 }
-                if(stats.compilation.errors && stats.compilation.errors.length) {
-                    var message = chalk.red('[WEBPACK]') + ' Errors building ' + chalk.yellow(getAppName(webpackConfig)) + "\n"
-                        + stats.compilation.errors.map(function(error) {
-                            return error.message;
-                        }).join("\n");
-                    if(watch) {
+                if (
+                    stats.compilation.errors &&
+                    stats.compilation.errors.length
+                ) {
+                    var message =
+                        chalk.red('[WEBPACK]') +
+                        ' Errors building ' +
+                        chalk.yellow(getAppName(webpackConfig)) +
+                        '\n' +
+                        stats.compilation.errors
+                            .map(function(error) {
+                                return error.message;
+                            })
+                            .join('\n');
+                    if (watch) {
                         console.log(message);
                     } else {
                         process.removeListener('SIGINT', shutdownCallback);
                         return done({
                             message: message,
-                            stats: JSON.stringify(stats.toJson(outputOptions), null, 2)
+                            stats: JSON.stringify(
+                                stats.toJson(outputOptions),
+                                null,
+                                2
+                            ),
                         });
                     }
                 }
-                if(!silent) {
-                    if(options.stats) {
+                if (!silent) {
+                    if (options.stats) {
                         console.log(stats.toString(outputOptions));
                     }
                     var timeStamp = watch
-                        ? ' ' + chalk.yellow(new Date().toTimeString().split(/ +/)[0])
+                        ? ' ' +
+                          chalk.yellow(new Date().toTimeString().split(/ +/)[0])
                         : '';
-                    console.log('%s Finished building %s within %s seconds', chalk.blue('[WEBPACK' + timeStamp + ']'), chalk.yellow(getAppName(webpackConfig)), chalk.blue((stats.endTime - stats.startTime) / 1000));
+                    console.log(
+                        '%s Finished building %s within %s seconds',
+                        chalk.blue('[WEBPACK' + timeStamp + ']'),
+                        chalk.yellow(getAppName(webpackConfig)),
+                        chalk.blue((stats.endTime - stats.startTime) / 1000)
+                    );
                 }
-                if(!watch) {
+                if (!watch) {
                     process.removeListener('SIGINT', shutdownCallback);
-                    done(null, options.stats ? JSON.stringify(stats.toJson(outputOptions), null, 2) : '');
+                    done(
+                        null,
+                        options.stats
+                            ? JSON.stringify(
+                                  stats.toJson(outputOptions),
+                                  null,
+                                  2
+                              )
+                            : ''
+                    );
                 } else {
                     notifyIPCWatchCallback(index);
                     if (!hasCompletedOneCompile) {
@@ -143,14 +187,21 @@ module.exports = function(configuratorFileName, options, index, expectedConfigLe
                         hasCompletedOneCompile = true;
                     }
                 }
-
             };
-        if(!silent) {
-            console.log('%s Started %s %s', chalk.blue('[WEBPACK]'), watch ? 'watching' : 'building', chalk.yellow(getAppName(webpackConfig)));
+        if (!silent) {
+            console.log(
+                '%s Started %s %s',
+                chalk.blue('[WEBPACK]'),
+                watch ? 'watching' : 'building',
+                chalk.yellow(getAppName(webpackConfig))
+            );
         }
         var compiler = webpack(webpackConfig);
-        if(watch || webpack.watch) {
-            watcher = compiler.watch(webpackConfig.watchOptions, finishedCallback);
+        if (watch || webpack.watch) {
+            watcher = compiler.watch(
+                webpackConfig.watchOptions,
+                finishedCallback
+            );
         } else {
             compiler.run(finishedCallback);
         }
